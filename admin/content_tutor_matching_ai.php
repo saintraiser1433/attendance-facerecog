@@ -260,6 +260,13 @@ if ($is_generate_request) {
             }
         }
 
+        // Keep match score bounded to 0..100 for UI percentage.
+        if ($match_score > 100) {
+            $match_score = 100;
+        } elseif ($match_score < 0) {
+            $match_score = 0;
+        }
+
         if ($match_score >= 50) {
             $reason_text = implode(", ", $reasons);
             $insert_sql = "INSERT INTO tutor_matching_suggestions

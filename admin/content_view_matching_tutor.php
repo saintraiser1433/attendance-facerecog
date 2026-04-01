@@ -61,6 +61,24 @@ $sql = "SELECT tsm.*,
         LEFT JOIN tutor_reviews tr ON tr.matching_id = tsm.id
         ORDER BY tsm.created_at DESC";
 $result = mysqli_query($conn, $sql);
+
+// Preload all tutor reviews (for carousel in "View Review" modal)
+$all_reviews_map = [];
+$all_reviews_sql = "SELECT tutor_id, rating, comment, created_at FROM tutor_reviews ORDER BY created_at DESC";
+$all_reviews_res = mysqli_query($conn, $all_reviews_sql);
+if ($all_reviews_res) {
+    while ($rv = mysqli_fetch_assoc($all_reviews_res)) {
+        $tid = (int) $rv['tutor_id'];
+        if (!isset($all_reviews_map[$tid])) {
+            $all_reviews_map[$tid] = [];
+        }
+        $all_reviews_map[$tid][] = [
+            'rating' => (int) $rv['rating'],
+            'comment' => (string) ($rv['comment'] ?? ''),
+            'created_at' => (string) ($rv['created_at'] ?? ''),
+        ];
+    }
+}
 ?>
 
 <style>
@@ -177,7 +195,7 @@ $result = mysqli_query($conn, $sql);
                         if ($row['status'] === 'Completed') {
                             if (!empty($row['review_id'])) {
                                 echo '<button type="button" class="btn btn-sm" style="background:#3498db;color:#fff;border:none;border-radius:4px;cursor:pointer;" ';
-                                echo 'onclick="openReviewView(' . (int) $row['id'] . ', ' . (int) $row['review_rating'] . ', ' . htmlspecialchars(json_encode($row['review_comment'] ?? ''), ENT_QUOTES) . ')">';
+                                echo 'onclick="openReviewViewTutor(' . (int) $row['tutor_id'] . ')">';
                                 echo '<i class="fas fa-eye"></i> Review</button>';
                             } else {
                                 echo '<button type="button" class="btn btn-sm" style="background:#27ae60;color:#fff;border:none;border-radius:4px;cursor:pointer;" ';
@@ -236,8 +254,8 @@ $result = mysqli_query($conn, $sql);
             <button type="button" id="reviewViewClose" style="border:none;background:transparent;font-size:18px;cursor:pointer;">✕</button>
         </div>
         <div style="margin-top:12px;">
-            <div style="font-weight:800;color:#2c3e50;">Rating: <span id="reviewViewRating"></span>/10</div>
-            <div style="margin-top:10px;background:#f8f9fa;border:1px solid #eee;border-radius:8px;padding:12px;white-space:pre-wrap;" id="reviewViewComment"></div>
+            <div style="font-weight:800;color:#2c3e50;margin-bottom:8px;">Reviewer comments</div>
+            <div id="reviewCarousel" style="position:relative;min-height:90px;background:#f8f9fa;border:1px solid #eee;border-radius:8px;padding:12px;overflow:hidden;"></div>
         </div>
         <div style="display:flex;justify-content:flex-end;margin-top:14px;">
             <button type="button" id="reviewViewOk" style="padding:10px 14px;background:#3498db;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;">OK</button>
@@ -254,9 +272,40 @@ function openReviewModal(matchingId) {
     modal.style.display = 'flex';
 }
 function openReviewView(matchingId, rating, comment) {
+    // Backward-compat wrapper (unused now); keep for safety.
+    openReviewViewTutor(matchingId);
+}
+var tutorReviewsMap = <?php echo json_encode($all_reviews_map, JSON_UNESCAPED_UNICODE); ?>;
+var reviewCarouselTimer = null;
+function openReviewViewTutor(tutorId) {
     var modal = document.getElementById('reviewViewModal');
-    document.getElementById('reviewViewRating').textContent = rating;
-    document.getElementById('reviewViewComment').textContent = comment || '';
+    var box = document.getElementById('reviewCarousel');
+    var rows = tutorReviewsMap[String(tutorId)] || tutorReviewsMap[tutorId] || [];
+    if (reviewCarouselTimer) {
+        clearInterval(reviewCarouselTimer);
+        reviewCarouselTimer = null;
+    }
+    if (!rows.length) {
+        box.innerHTML = '<div style="color:#7f8c8d;">No comments available.</div>';
+        modal.style.display = 'flex';
+        return;
+    }
+    box.innerHTML = rows.map(function(r, i) {
+        return '<div class="rv-slide' + (i === 0 ? ' active' : '') + '" style="position:absolute;inset:12px;opacity:' + (i === 0 ? '1' : '0') + ';transition:opacity .5s;">' +
+               '<div style="font-weight:700;color:#2c3e50;">' + r.rating + '/10</div>' +
+               '<div style="margin-top:6px;white-space:pre-wrap;">' + (r.comment || '') + '</div>' +
+               '</div>';
+    }).join('');
+    if (rows.length > 1) {
+        var idx = 0;
+        reviewCarouselTimer = setInterval(function() {
+            var slides = box.querySelectorAll('.rv-slide');
+            if (!slides.length) return;
+            slides[idx].style.opacity = '0';
+            idx = (idx + 1) % slides.length;
+            slides[idx].style.opacity = '1';
+        }, 2600);
+    }
     modal.style.display = 'flex';
 }
 (function() {
@@ -265,8 +314,19 @@ function openReviewView(matchingId, rating, comment) {
     document.getElementById('reviewCancel').onclick = function() { close('reviewModal'); };
     document.getElementById('reviewModal').onclick = function(e) { if (e.target === this) close('reviewModal'); };
 
-    document.getElementById('reviewViewClose').onclick = function() { close('reviewViewModal'); };
-    document.getElementById('reviewViewOk').onclick = function() { close('reviewViewModal'); };
-    document.getElementById('reviewViewModal').onclick = function(e) { if (e.target === this) close('reviewViewModal'); };
+    document.getElementById('reviewViewClose').onclick = function() {
+        if (reviewCarouselTimer) { clearInterval(reviewCarouselTimer); reviewCarouselTimer = null; }
+        close('reviewViewModal');
+    };
+    document.getElementById('reviewViewOk').onclick = function() {
+        if (reviewCarouselTimer) { clearInterval(reviewCarouselTimer); reviewCarouselTimer = null; }
+        close('reviewViewModal');
+    };
+    document.getElementById('reviewViewModal').onclick = function(e) {
+        if (e.target === this) {
+            if (reviewCarouselTimer) { clearInterval(reviewCarouselTimer); reviewCarouselTimer = null; }
+            close('reviewViewModal');
+        }
+    };
 })();
 </script>
