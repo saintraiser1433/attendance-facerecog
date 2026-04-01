@@ -1,4 +1,7 @@
 <?php
+require_once __DIR__ . '/../includes/tutor_reviews_schema.php';
+tutor_reviews_ensure_schema($conn);
+
 // Handle delete action
 if (isset($_GET['delete_id'])) {
     $delete_id = intval($_GET['delete_id']);
@@ -29,7 +32,16 @@ if (isset($_POST['update_status'])) {
 }
 
 // Fetch all tutors
-$sql = "SELECT * FROM tutors ORDER BY created_at DESC";
+$sql = "SELECT t.*,
+               COALESCE(rr.avg_rating, 0) AS avg_rating,
+               COALESCE(rr.review_count, 0) AS review_count
+        FROM tutors t
+        LEFT JOIN (
+            SELECT tutor_id, AVG(rating) AS avg_rating, COUNT(*) AS review_count
+            FROM tutor_reviews
+            GROUP BY tutor_id
+        ) rr ON rr.tutor_id = t.id
+        ORDER BY t.created_at DESC";
 $result = mysqli_query($conn, $sql);
 ?>
 
@@ -187,6 +199,7 @@ $result = mysqli_query($conn, $sql);
                     <th>Specialization</th>
                     <th>Experience</th>
                     <th>Hourly Rate</th>
+                    <th>Rating</th>
                     <th>Status</th>
                     <th>Actions</th>
                 </tr>
@@ -215,6 +228,10 @@ $result = mysqli_query($conn, $sql);
                         echo '<td>' . htmlspecialchars($row['specialization'] ?? 'N/A') . '</td>';
                         echo '<td>' . htmlspecialchars($row['experience_years']) . ' years</td>';
                         echo '<td>$' . number_format($row['hourly_rate'], 2) . '</td>';
+                        $avg = (float) ($row['avg_rating'] ?? 0);
+                        $rc = (int) ($row['review_count'] ?? 0);
+                        $pct = $rc > 0 ? (int) round(($avg / 10) * 100) : 0;
+                        echo '<td>' . ($rc > 0 ? ($pct . '% (' . number_format($avg, 1) . '/10)') : 'No rating') . '</td>';
                         echo '<td><span class="badge ' . $status_class . '">' . htmlspecialchars($row['status']) . '</span></td>';
                         echo '<td class="action-buttons">';
                         echo '<a href="?page=edit_tutor&id=' . $row['id'] . '" class="btn btn-warning btn-sm" title="Edit"><i class="fas fa-edit"></i></a>';
@@ -223,7 +240,7 @@ $result = mysqli_query($conn, $sql);
                         echo '</tr>';
                     }
                 } else {
-                    echo '<tr><td colspan="9" style="text-align:center;">No tutors found. <a href="?page=add_tutor">Add your first tutor</a></td></tr>';
+                    echo '<tr><td colspan="10" style="text-align:center;">No tutors found. <a href="?page=add_tutor">Add your first tutor</a></td></tr>';
                 }
                 ?>
             </tbody>
