@@ -61,18 +61,34 @@ try {
     $sent = 0;
     $skipped = 0;
     $errors = [];
+    /** @var list<array{student_id:string, channel:string, phone:string, contact_name:?string}> */
+    $notifications = [];
 
     while ($row = mysqli_fetch_assoc($result)) {
+        $sid = (string) ($row['student_id'] ?? '');
+        $emRaw = isset($row['emergency_contact_phone']) ? trim((string) $row['emergency_contact_phone']) : '';
+        $stuRaw = isset($row['phone']) ? trim((string) $row['phone']) : '';
+        $emName = isset($row['emergency_contact_name']) ? trim((string) $row['emergency_contact_name']) : '';
+
+        $channel = null;
         $phone = null;
-        if (!empty($row['emergency_contact_phone'])) {
-            $phone = normalize_ph_mobile($row['emergency_contact_phone']);
-        }
-        if ($phone === null && !empty($row['phone'])) {
-            $phone = normalize_ph_mobile($row['phone']);
-        }
-        if ($phone === null || !preg_match('/^\+639\d{9}$/', $phone)) {
-            $skipped++;
-            continue;
+
+        // If a guardian number was entered, use ONLY that (no silent fallback to student phone).
+        if ($emRaw !== '') {
+            $phone = normalize_ph_mobile($emRaw);
+            if ($phone === null || !preg_match('/^\+639\d{9}$/', $phone)) {
+                $errors[] = "{$sid}: Emergency contact phone is invalid or cannot be normalized to +639 (e.g. use 09XXXXXXXXX). SMS not sent — fix the number in the student record.";
+                $skipped++;
+                continue;
+            }
+            $channel = 'emergency';
+        } else {
+            $phone = normalize_ph_mobile($stuRaw);
+            if ($phone === null || !preg_match('/^\+639\d{9}$/', $phone)) {
+                $skipped++;
+                continue;
+            }
+            $channel = 'student';
         }
 
         $dup = mysqli_prepare($conn, 'SELECT id, success FROM parent_absence_sms_log WHERE student_id = ? AND streak_end_date = ? LIMIT 1');
@@ -87,8 +103,13 @@ try {
         }
 
         $name = trim($row['first_name'] . ' ' . $row['last_name']);
-        $sid = $row['student_id'];
-        $body = "School attendance notice: {$name} (ID: {$sid}) has been marked ABSENT two times in a row — on {$yesterday} and {$today}. Please ensure the student attends or contact the school. Thank you.";
+
+        if ($channel === 'emergency') {
+            $greet = $emName !== '' ? "Dear {$emName}," : 'Dear Parent/Guardian,';
+            $body = "{$greet} this is regarding student {$name} (ID: {$sid}). They have been marked ABSENT two school days in a row: {$yesterday} and {$today}. Please ensure they attend or contact the school. Thank you.";
+        } else {
+            $body = "Attendance notice for {$name} (ID: {$sid}): marked ABSENT two days in a row ({$yesterday} and {$today}). No emergency contact on file — this message was sent to the number we have for the student. Please contact the school if needed.";
+        }
 
         $send = sms_send_raw(
             $settings['gateway_url'],
@@ -116,8 +137,15 @@ try {
 
         if ($send['ok']) {
             $sent++;
+            $notifications[] = [
+                'student_id' => $sid,
+                'channel' => $channel,
+                'phone' => $phone,
+                'emergency_contact_name' => $channel === 'emergency' ? ($emName !== '' ? $emName : null) : null,
+            ];
             if (!$prevLog || (int) $prevLog['success'] !== 1) {
-                $alertMsg = "Parent SMS sent (consecutive absence): {$name} ({$sid}). Notified {$phone}.";
+                $who = $channel === 'emergency' ? "guardian at {$phone}" : "student number {$phone}";
+                $alertMsg = "Consecutive absence SMS sent for {$name} ({$sid}) to {$who}.";
                 $insAlert = mysqli_prepare($conn, "INSERT INTO attendance_alerts (student_id, alert_type, absence_count, alert_message, severity) VALUES (?, 'Consecutive Absence', 2, ?, 'High')");
                 mysqli_stmt_bind_param($insAlert, 'is', $row['id'], $alertMsg);
                 mysqli_stmt_execute($insAlert);
@@ -129,7 +157,13 @@ try {
     }
     mysqli_stmt_close($stmt);
 
-    absence_sms_tick_respond(['ok' => true, 'sent' => $sent, 'skipped' => $skipped, 'errors' => $errors]);
+    absence_sms_tick_respond([
+        'ok' => true,
+        'sent' => $sent,
+        'skipped' => $skipped,
+        'errors' => $errors,
+        'notifications' => $notifications,
+    ]);
 } catch (Throwable $e) {
     absence_sms_tick_respond(['ok' => false, 'error' => $e->getMessage(), 'sent' => 0, 'skipped' => 0, 'errors' => []]);
 }

@@ -424,7 +424,10 @@
                         try {
                             var data = JSON.parse(text);
                             if (data.ok && data.sent > 0 && window.console && console.log) {
-                                console.log('[Attendance SMS] Sent ' + data.sent + ' parent notice(s) (2 absences in a row).');
+                                console.log('[Attendance SMS] Sent ' + data.sent + ' notice(s). Destinations:', data.notifications || []);
+                            }
+                            if (data.ok && data.errors && data.errors.length && window.console && console.warn) {
+                                console.warn('[Attendance SMS] Issues:', data.errors);
                             }
                             if (data.ok === false && data.error && window.console && console.warn) {
                                 console.warn('[Attendance SMS]', data.error);
