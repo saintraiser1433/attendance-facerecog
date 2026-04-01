@@ -1,4 +1,8 @@
 <?php
+require_once __DIR__ . '/../includes/sms_schema.php';
+require_once __DIR__ . '/../includes/ph_phone.php';
+sms_ensure_schema($conn);
+
 $success_message = '';
 $error_message = '';
 $generated_student_id = '';
@@ -37,7 +41,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_student'])) {
     $first_name = mysqli_real_escape_string($conn, trim($_POST['first_name']));
     $last_name = mysqli_real_escape_string($conn, trim($_POST['last_name']));
     $email = mysqli_real_escape_string($conn, trim($_POST['email']));
-    $phone = mysqli_real_escape_string($conn, trim($_POST['phone']));
+    $phone_raw = trim($_POST['phone'] ?? '');
+    $emergency_contact_name = mysqli_real_escape_string($conn, trim($_POST['emergency_contact_name'] ?? ''));
+    $emergency_phone_raw = trim($_POST['emergency_contact_phone'] ?? '');
     $date_of_birth = mysqli_real_escape_string($conn, $_POST['date_of_birth']);
     $address = mysqli_real_escape_string($conn, trim($_POST['address']));
     $year_level_id = !empty($_POST['year_level_id']) ? intval($_POST['year_level_id']) : NULL;
@@ -74,6 +80,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_student'])) {
         }
     }
 
+    $phone = null;
+    if ($phone_raw !== '') {
+        $phone = validate_ph_mobile_required($phone_raw);
+        if ($phone === null) {
+            $error_message = 'Phone must be a valid Philippine mobile number (saved as +639XXXXXXXXX).';
+        }
+    }
+    $emergency_contact_phone = null;
+    if ($emergency_phone_raw !== '') {
+        $emergency_contact_phone = validate_ph_mobile_required($emergency_phone_raw);
+        if ($emergency_contact_phone === null) {
+            $error_message = 'Emergency contact number must be a valid Philippine mobile (+639XXXXXXXXX).';
+        }
+    }
+
     if (empty($error_message)) {
         if (empty($first_name) || empty($last_name) || empty($enrollment_date)) {
             $error_message = 'Please fill in all required fields.';
@@ -94,9 +115,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_student'])) {
             
             if (empty($error_message)) {
                 // Insert new student
-                $insert_sql = "INSERT INTO students (first_name, last_name, email, phone, date_of_birth, address, year_level_id, section, student_id_image, enrollment_date, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                $insert_sql = "INSERT INTO students (first_name, last_name, email, phone, emergency_contact_name, emergency_contact_phone, date_of_birth, address, year_level_id, section, student_id_image, enrollment_date, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
                 $stmt = mysqli_prepare($conn, $insert_sql);
-                mysqli_stmt_bind_param($stmt, "ssssssissss", $first_name, $last_name, $email, $phone, $date_of_birth, $address, $year_level_id, $section, $student_id_image, $enrollment_date, $status);
+                $phone_bind = $phone ?? '';
+                $em_name_bind = $emergency_contact_name;
+                $em_phone_bind = $emergency_contact_phone ?? '';
+                mysqli_stmt_bind_param($stmt, "ssssssssissss", $first_name, $last_name, $email, $phone_bind, $em_name_bind, $em_phone_bind, $date_of_birth, $address, $year_level_id, $section, $student_id_image, $enrollment_date, $status);
                 
                 if (mysqli_stmt_execute($stmt)) {
                     $last_student_id = mysqli_insert_id($conn);
@@ -351,9 +375,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_student'])) {
                        value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>">
             </div>
             <div class="form-group">
-                <label for="phone">Phone</label>
-                <input type="tel" class="form-control" id="phone" name="phone" 
+                <label for="phone">Phone <small style="font-weight:normal;color:#666;">(Philippine mobile, stored as +639…)</small></label>
+                <input type="tel" class="form-control" id="phone" name="phone" inputmode="numeric" autocomplete="tel"
+                       placeholder="9123456789"
                        value="<?php echo isset($_POST['phone']) ? htmlspecialchars($_POST['phone']) : ''; ?>">
+            </div>
+        </div>
+
+        <div class="section-divider">
+            <h3><i class="fas fa-phone-alt"></i> In case of emergency</h3>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label for="emergency_contact_name">Emergency contact name</label>
+                <input type="text" class="form-control" id="emergency_contact_name" name="emergency_contact_name"
+                       value="<?php echo isset($_POST['emergency_contact_name']) ? htmlspecialchars($_POST['emergency_contact_name']) : ''; ?>"
+                       placeholder="Parent / guardian name">
+            </div>
+            <div class="form-group">
+                <label for="emergency_contact_phone">Emergency contact number</label>
+                <input type="tel" class="form-control" id="emergency_contact_phone" name="emergency_contact_phone" inputmode="numeric" autocomplete="tel"
+                       placeholder="9123456789 (+639 required if provided)"
+                       value="<?php echo isset($_POST['emergency_contact_phone']) ? htmlspecialchars($_POST['emergency_contact_phone']) : ''; ?>">
             </div>
         </div>
 

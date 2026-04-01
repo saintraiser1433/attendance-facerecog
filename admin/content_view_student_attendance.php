@@ -1,4 +1,48 @@
 <?php
+$attendance_flash_ok = '';
+$attendance_flash_err = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['set_attendance_status'])) {
+    $student_row_id = (int) ($_POST['student_row_id'] ?? 0);
+    $att_date_in = $_POST['attendance_date'] ?? '';
+    $st = $_POST['status_val'] ?? '';
+    $allowed = ['Present', 'Absent', 'Late', 'Excused'];
+    if ($student_row_id > 0 && preg_match('/^\d{4}-\d{2}-\d{2}$/', $att_date_in) && in_array($st, $allowed, true)) {
+        $chk = mysqli_prepare($conn, 'SELECT id FROM student_attendance WHERE student_id = ? AND attendance_date = ? LIMIT 1');
+        mysqli_stmt_bind_param($chk, 'is', $student_row_id, $att_date_in);
+        mysqli_stmt_execute($chk);
+        $ex = mysqli_stmt_get_result($chk);
+        $exists = $ex ? mysqli_fetch_assoc($ex) : null;
+        mysqli_stmt_close($chk);
+
+        $now = date('Y-m-d H:i:s');
+        if ($exists) {
+            if ($st === 'Absent' || $st === 'Excused') {
+                $u = mysqli_prepare($conn, 'UPDATE student_attendance SET status = ?, check_in_time = NULL, check_out_time = NULL, is_biometric_verified = 0 WHERE student_id = ? AND attendance_date = ?');
+                mysqli_stmt_bind_param($u, 'sis', $st, $student_row_id, $att_date_in);
+            } else {
+                $u = mysqli_prepare($conn, 'UPDATE student_attendance SET status = ?, check_in_time = COALESCE(check_in_time, ?), is_biometric_verified = 0 WHERE student_id = ? AND attendance_date = ?');
+                mysqli_stmt_bind_param($u, 'ssis', $st, $now, $student_row_id, $att_date_in);
+            }
+            mysqli_stmt_execute($u);
+            mysqli_stmt_close($u);
+        } else {
+            if ($st === 'Absent' || $st === 'Excused') {
+                $ins = mysqli_prepare($conn, 'INSERT INTO student_attendance (student_id, attendance_date, check_in_time, check_out_time, status, is_biometric_verified) VALUES (?, ?, NULL, NULL, ?, 0)');
+                mysqli_stmt_bind_param($ins, 'iss', $student_row_id, $att_date_in, $st);
+            } else {
+                $ins = mysqli_prepare($conn, 'INSERT INTO student_attendance (student_id, attendance_date, check_in_time, check_out_time, status, is_biometric_verified) VALUES (?, ?, ?, NULL, ?, 0)');
+                mysqli_stmt_bind_param($ins, 'isss', $student_row_id, $att_date_in, $now, $st);
+            }
+            mysqli_stmt_execute($ins);
+            mysqli_stmt_close($ins);
+        }
+        $attendance_flash_ok = 'Attendance saved for selected student.';
+    } else {
+        $attendance_flash_err = 'Could not update attendance (invalid data).';
+    }
+}
+
 // Get filter parameters
 $filter_date = isset($_GET['date']) ? $_GET['date'] : date('Y-m-d');
 $filter_year_level = isset($_GET['year_level']) ? $_GET['year_level'] : '';
@@ -10,7 +54,7 @@ $year_levels_sql = "SELECT * FROM year_levels WHERE status = 'Active' ORDER BY o
 $year_levels_result = mysqli_query($conn, $year_levels_sql);
 
 // Build query for student attendance
-$sql = "SELECT s.student_id, s.first_name, s.last_name, s.section, y.year_level_name, 
+$sql = "SELECT s.id AS student_pk, s.student_id, s.first_name, s.last_name, s.section, y.year_level_name, 
                sa.attendance_date, sa.status, sa.check_in_time, sa.check_out_time
         FROM students s
         LEFT JOIN year_levels y ON s.year_level_id = y.id
@@ -47,7 +91,13 @@ $sections_result = mysqli_query($conn, $sections_sql);
 
 <div style="background:#fff;padding:30px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
     <h2><i class="fas fa-calendar-check"></i> Student Attendance</h2>
-    <p>View and manage student attendance records.</p>
+    <p>View and manage student attendance records. Mark status for the selected date (needed for consecutive absence SMS).</p>
+    <?php if ($attendance_flash_ok): ?>
+        <div style="padding:12px;background:#d4edda;color:#155724;border-radius:4px;margin:12px 0;"><?php echo htmlspecialchars($attendance_flash_ok); ?></div>
+    <?php endif; ?>
+    <?php if ($attendance_flash_err): ?>
+        <div style="padding:12px;background:#f8d7da;color:#721c24;border-radius:4px;margin:12px 0;"><?php echo htmlspecialchars($attendance_flash_err); ?></div>
+    <?php endif; ?>
     
     <!-- Filter Form -->
     <div style="background:#f8f9fa;padding:20px;border-radius:8px;margin:20px 0;">
@@ -160,6 +210,7 @@ $sections_result = mysqli_query($conn, $sections_sql);
                         <th style="padding:12px;text-align:left;border-bottom:2px solid #dee2e6;">Status</th>
                         <th style="padding:12px;text-align:left;border-bottom:2px solid #dee2e6;">Check-in Time</th>
                         <th style="padding:12px;text-align:left;border-bottom:2px solid #dee2e6;">Check-out Time</th>
+                        <th style="padding:12px;text-align:left;border-bottom:2px solid #dee2e6;">Set status</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -191,6 +242,20 @@ $sections_result = mysqli_query($conn, $sections_sql);
                             </td>
                             <td style="padding:12px;"><?php echo htmlspecialchars($student['check_in_time'] ?? 'N/A'); ?></td>
                             <td style="padding:12px;"><?php echo htmlspecialchars($student['check_out_time'] ?? 'N/A'); ?></td>
+                            <td style="padding:12px;">
+                                <form method="post" action="" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+                                    <input type="hidden" name="student_row_id" value="<?php echo (int) $student['student_pk']; ?>">
+                                    <input type="hidden" name="attendance_date" value="<?php echo htmlspecialchars($filter_date); ?>">
+                                    <select name="status_val" style="padding:6px;border:1px solid #ccc;border-radius:4px;" required>
+                                        <?php $cur = $student['status'] ?? ''; ?>
+                                        <option value="" <?php echo $cur === '' ? 'selected' : ''; ?> disabled>— select —</option>
+                                        <?php foreach (['Present', 'Absent', 'Late', 'Excused'] as $opt): ?>
+                                            <option value="<?php echo $opt; ?>" <?php echo $cur === $opt ? 'selected' : ''; ?>><?php echo $opt; ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <button type="submit" name="set_attendance_status" value="1" style="padding:6px 10px;background:#3498db;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px;">Save</button>
+                                </form>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>

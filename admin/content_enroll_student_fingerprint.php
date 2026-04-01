@@ -58,30 +58,10 @@ if (isset($_POST['ajax_enroll'])) {
     }
     
     // Log sample counts for debugging
-    $index_count = count($index_finger_samples);
-    $middle_count = count($middle_finger_samples);
-    error_log("Index finger samples count: " . $index_count);
-    error_log("Middle finger samples count: " . $middle_count);
+    error_log("Index finger samples count: " . count($index_finger_samples));
+    error_log("Middle finger samples count: " . count($middle_finger_samples));
     error_log("First index sample length: " . (isset($index_finger_samples[0]) ? strlen($index_finger_samples[0]) : 0));
     error_log("First middle sample length: " . (isset($middle_finger_samples[0]) ? strlen($middle_finger_samples[0]) : 0));
-    
-    // The enrollment service may require 4 samples per finger, duplicate if needed
-    // Some services work with 2, but if we get empty responses, we might need 4
-    if ($index_count < 4) {
-        // Duplicate samples to reach 4 (required by some enrollment services)
-        while (count($index_finger_samples) < 4 && count($index_finger_samples) > 0) {
-            $index_finger_samples[] = $index_finger_samples[0];
-        }
-        error_log("Duplicated index samples to reach 4 samples");
-    }
-    
-    if ($middle_count < 4) {
-        // Duplicate samples to reach 4
-        while (count($middle_finger_samples) < 4 && count($middle_finger_samples) > 0) {
-            $middle_finger_samples[] = $middle_finger_samples[0];
-        }
-        error_log("Duplicated middle samples to reach 4 samples");
-    }
     
     // Prepare fingerprint array for enrollment
     $pre_reg_fmd_array = [
@@ -100,7 +80,7 @@ if (isset($_POST['ajax_enroll'])) {
         // Check if response is a string error
         if ($json_response === "enrollment failed" || $json_response === '"enrollment failed"' || trim($json_response) === "enrollment failed") {
             ob_clean();
-            $response = ['success' => false, 'error' => 'Fingerprint enrollment processing failed. Please ensure the fingerprint service is running at http://localhost:9090'];
+            $response = ['success' => false, 'error' => 'Fingerprint enrollment processing failed. Please ensure the fingerprint service is running at http://localhost:5555'];
             echo json_encode($response);
             exit();
         }

@@ -234,7 +234,9 @@ $stats = mysqli_fetch_assoc($stats_result);
 
 <div class="monitoring-card">
     <h2><i class="fas fa-bell"></i> Attendance Monitoring & Alerts</h2>
-    <p>Automated monitoring system that tracks student attendance patterns and generates alerts</p>
+    <p>Automated monitoring system that tracks student attendance patterns and generates alerts.</p>
+    <p style="color:#555;font-size:14px;"><i class="fas fa-sms"></i> While this page is open, the system checks every <strong>2 minutes</strong> for students marked <strong>Absent</strong> on both yesterday and today, then sends one parent SMS per student (via <a href="?page=sms_settings">SMS Settings</a>). Emergency contact number is used first, then the student phone.</p>
+    <pre id="parent-sms-poll-log" style="display:none;margin-top:12px;padding:10px;background:#f8f9fa;border-radius:4px;font-size:12px;white-space:pre-wrap;"></pre>
 
     <?php if ($success_message): ?>
         <div class="alert alert-success">
@@ -340,8 +342,41 @@ $stats = mysqli_fetch_assoc($stats_result);
 </div>
 
 <script>
-// Auto-refresh every 5 minutes
+// Auto-refresh list every 5 minutes
 setTimeout(function() {
     location.reload();
 }, 300000);
+
+// Parent SMS: poll for consecutive absences (yesterday + today) while this page is open
+(function() {
+    var logEl = document.getElementById('parent-sms-poll-log');
+    function tick() {
+        var tickUrl = new URL('../ajax/parent_absence_sms_tick.php', window.location.href).href;
+        fetch(tickUrl, { credentials: 'same-origin' })
+            .then(function(r) { return r.text(); })
+            .then(function(text) {
+                var data;
+                try {
+                    data = JSON.parse(text);
+                } catch (ignore) {
+                    if (logEl) {
+                        logEl.style.display = 'block';
+                        logEl.textContent = new Date().toLocaleTimeString() + ' — Invalid JSON: ' + text.substring(0, 200);
+                    }
+                    return;
+                }
+                if (!logEl) return;
+                if (data.ok === false && data.error) {
+                    logEl.style.display = 'block';
+                    logEl.textContent = new Date().toLocaleTimeString() + ' — ' + JSON.stringify(data);
+                } else if (data.sent > 0 || (data.errors && data.errors.length)) {
+                    logEl.style.display = 'block';
+                    logEl.textContent = new Date().toLocaleTimeString() + ' — ' + JSON.stringify(data);
+                }
+            })
+            .catch(function() { /* ignore */ });
+    }
+    tick();
+    setInterval(tick, 120000);
+})();
 </script>

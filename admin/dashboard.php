@@ -278,6 +278,10 @@
                     <i class="fas fa-bell"></i>
                     <span>Attendance Alerts</span>
                 </a>
+                <a href="?page=sms_settings" class="menu-item <?php echo $current_page == 'sms_settings' ? 'active' : ''; ?>">
+                    <i class="fas fa-sms"></i>
+                    <span>SMS Settings</span>
+                </a>
             </div>
             <div class="menu-section">
                 <div class="menu-header">AI Features</div>
@@ -377,6 +381,9 @@
                     break;
                 case 'attendance_monitoring':
                     include 'content_attendance_monitoring.php';
+                    break;
+                case 'sms_settings':
+                    include 'content_sms_settings.php';
                     break;
                 case 'tutor_matching_ai':
                     include 'content_tutor_matching_ai.php';
