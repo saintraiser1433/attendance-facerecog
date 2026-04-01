@@ -300,6 +300,10 @@
                     <i class="fas fa-file-download"></i>
                     <span>Generate Reports</span>
                 </a>
+                <a href="?page=progress_report_lessons" class="menu-item <?php echo $current_page == 'progress_report_lessons' ? 'active' : ''; ?>">
+                    <i class="fas fa-clipboard-list"></i>
+                    <span>Tutor Lesson Progress</span>
+                </a>
                 <a href="?page=view_reports" class="menu-item <?php echo $current_page == 'view_reports' ? 'active' : ''; ?>">
                     <i class="fas fa-chart-bar"></i>
                     <span>View Reports</span>
@@ -397,6 +401,9 @@
                     break;
                 case 'generate_reports':
                     include 'content_generate_reports.php';
+                    break;
+                case 'progress_report_lessons':
+                    include 'content_progress_report_lessons.php';
                     break;
                 default:
                     include 'content_dashboard.php';
