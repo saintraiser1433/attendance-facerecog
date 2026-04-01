@@ -88,7 +88,7 @@ try {
 
         $name = trim($row['first_name'] . ' ' . $row['last_name']);
         $sid = $row['student_id'];
-        $body = "From your school attendance system: {$name} (Student ID: {$sid}) was recorded Absent on two consecutive days ({$yesterday} and {$today}). Please contact the school if you have questions.";
+        $body = "School attendance notice: {$name} (ID: {$sid}) has been marked ABSENT two times in a row — on {$yesterday} and {$today}. Please ensure the student attends or contact the school. Thank you.";
 
         $send = sms_send_raw(
             $settings['gateway_url'],

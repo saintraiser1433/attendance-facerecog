@@ -410,6 +410,33 @@
                 document.querySelector('.main-content').style.marginLeft = '250px';
             }
         };
+
+        // Consecutive absence (2 days in a row): poll SMS worker every 2s while admin dashboard is open
+        (function() {
+            var busy = false;
+            var tickUrl = new URL('../ajax/parent_absence_sms_tick.php', window.location.href).href;
+            function tick() {
+                if (busy) return;
+                busy = true;
+                fetch(tickUrl, { method: 'POST', credentials: 'same-origin', cache: 'no-store' })
+                    .then(function(r) { return r.text(); })
+                    .then(function(text) {
+                        try {
+                            var data = JSON.parse(text);
+                            if (data.ok && data.sent > 0 && window.console && console.log) {
+                                console.log('[Attendance SMS] Sent ' + data.sent + ' parent notice(s) (2 absences in a row).');
+                            }
+                            if (data.ok === false && data.error && window.console && console.warn) {
+                                console.warn('[Attendance SMS]', data.error);
+                            }
+                        } catch (ignore) {}
+                    })
+                    .catch(function() {})
+                    .finally(function() { busy = false; });
+            }
+            tick();
+            setInterval(tick, 2000);
+        })();
     </script>
 </body>
 </html>
