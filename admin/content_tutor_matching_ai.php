@@ -307,6 +307,7 @@ $suggestions_sql = "SELECT tms.*,
                            s.id AS student_db_id,
                            s.student_id,
                            CONCAT(t.first_name, ' ', t.last_name) AS tutor_name,
+                           t.id AS tutor_pk,
                            t.tutor_id, t.specialization, t.experience_years, t.hourly_rate,
                            COALESCE(tr.avg_rating,   0) AS avg_rating,
                            COALESCE(tr.review_count, 0) AS review_count,
@@ -535,7 +536,7 @@ $students_result = mysqli_query($conn, $students_sql);
                 $comments_sql  = "SELECT comment, rating, created_at FROM tutor_reviews
                                   WHERE tutor_id = ? ORDER BY created_at DESC LIMIT 5";
                 $comments_stmt = mysqli_prepare($conn, $comments_sql);
-                mysqli_stmt_bind_param($comments_stmt, "i", $suggestion['tutor_id']);
+                mysqli_stmt_bind_param($comments_stmt, "i", $suggestion['tutor_pk']);
                 mysqli_stmt_execute($comments_stmt);
                 $comments_res = mysqli_stmt_get_result($comments_stmt);
                 $slides = [];
