@@ -51,6 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_review'])) {
 $sql = "SELECT tsm.*, 
         CONCAT(t.first_name, ' ', t.last_name) as tutor_name,
         CONCAT(s.first_name, ' ', s.last_name) as student_name,
+        t.id as tutor_pk,
         t.tutor_id, s.student_id,
         tr.id AS review_id,
         tr.rating AS review_rating,
@@ -195,7 +196,7 @@ if ($all_reviews_res) {
                         if ($row['status'] === 'Completed') {
                             if (!empty($row['review_id'])) {
                                 echo '<button type="button" class="btn btn-sm" style="background:#3498db;color:#fff;border:none;border-radius:4px;cursor:pointer;" ';
-                                echo 'onclick="openReviewViewTutor(' . (int) $row['tutor_id'] . ')">';
+                                echo 'onclick="openReviewViewTutor(' . (int) $row['tutor_pk'] . ')">';
                                 echo '<i class="fas fa-eye"></i> Review</button>';
                             } else {
                                 echo '<button type="button" class="btn btn-sm" style="background:#27ae60;color:#fff;border:none;border-radius:4px;cursor:pointer;" ';
