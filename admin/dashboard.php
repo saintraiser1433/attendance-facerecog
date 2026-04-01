@@ -250,6 +250,10 @@
                     <i class="fas fa-user-plus"></i>
                     <span>Add Tutor</span>
                 </a>
+                <a href="?page=lessons" class="menu-item <?php echo $current_page == 'lessons' ? 'active' : ''; ?>">
+                    <i class="fas fa-book"></i>
+                    <span>Lesson Module</span>
+                </a>
                 <a href="?page=view_tutor_attendance" class="menu-item <?php echo $current_page == 'view_tutor_attendance' ? 'active' : ''; ?>">
                     <i class="fas fa-calendar-check"></i>
                     <span>Tutor Attendance</span>
@@ -354,6 +358,9 @@
                     break;
                 case 'add_tutor':
                     include 'content_add_tutor_new.php';
+                    break;
+                case 'lessons':
+                    include 'content_lessons.php';
                     break;
                 case 'edit_tutor':
                     include 'content_edit_tutor.php';

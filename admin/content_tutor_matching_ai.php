@@ -8,7 +8,9 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 }
 
 require_once __DIR__ . '/../includes/tutor_reviews_schema.php';
+require_once __DIR__ . '/../includes/lesson_schema.php';
 tutor_reviews_ensure_schema($conn);
+lessons_ensure_schema($conn);
 
 // ── Filter state ────────────────────────────────────────────────────────────
 // Priority: POST (new generation) > GET > SESSION > default
@@ -84,7 +86,31 @@ if (isset($_POST['accept_match'])) {
         mysqli_stmt_bind_param($match_stmt, "iiss",
             $suggestion['tutor_id'], $suggestion['student_id'], $suggestion['subject'], $end_date);
         mysqli_stmt_execute($match_stmt);
+        $new_matching_id = (int) mysqli_insert_id($conn);
         mysqli_stmt_close($match_stmt);
+
+        if ($new_matching_id > 0) {
+            $lesson_q = mysqli_prepare($conn, "SELECT lesson_id FROM tutor_lessons WHERE tutor_id = ?");
+            mysqli_stmt_bind_param($lesson_q, "i", $suggestion['tutor_id']);
+            mysqli_stmt_execute($lesson_q);
+            $lesson_res = mysqli_stmt_get_result($lesson_q);
+            $lesson_ids = [];
+            while ($lesson_res && ($lr = mysqli_fetch_assoc($lesson_res))) {
+                $lesson_ids[] = (int) $lr['lesson_id'];
+            }
+            mysqli_stmt_close($lesson_q);
+
+            if (empty($lesson_ids)) {
+                $lesson_ids = lessons_resolve_ids($conn, [$suggestion['subject']]);
+            }
+
+            foreach ($lesson_ids as $lesson_id) {
+                $prog_stmt = mysqli_prepare($conn, "INSERT IGNORE INTO matching_lesson_progress (matching_id, lesson_id, is_completed) VALUES (?, ?, 0)");
+                mysqli_stmt_bind_param($prog_stmt, "ii", $new_matching_id, $lesson_id);
+                mysqli_stmt_execute($prog_stmt);
+                mysqli_stmt_close($prog_stmt);
+            }
+        }
         mysqli_stmt_close($get_stmt);
 
         $success_message = "Match accepted and activated successfully!";

@@ -1,6 +1,8 @@
 <?php
 require_once __DIR__ . '/../includes/tutor_reviews_schema.php';
+require_once __DIR__ . '/../includes/lesson_schema.php';
 tutor_reviews_ensure_schema($conn);
+lessons_ensure_schema($conn);
 
 // Auto-complete active matchings when end date is past
 mysqli_query($conn, "UPDATE tutor_student_matching 
@@ -9,8 +11,51 @@ mysqli_query($conn, "UPDATE tutor_student_matching
                        AND end_date IS NOT NULL 
                        AND end_date < CURDATE()");
 
+// Auto-complete when all lesson progress items are completed
+mysqli_query($conn, "UPDATE tutor_student_matching tsm
+                     INNER JOIN (
+                        SELECT matching_id
+                        FROM matching_lesson_progress
+                        GROUP BY matching_id
+                        HAVING COUNT(*) > 0
+                           AND SUM(CASE WHEN is_completed = 0 THEN 1 ELSE 0 END) = 0
+                     ) done ON done.matching_id = tsm.id
+                     SET tsm.status = 'Completed'
+                     WHERE tsm.status = 'Active'");
+
 $flash_ok = '';
 $flash_err = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_lesson_done'])) {
+    $matching_id = (int) ($_POST['matching_id'] ?? 0);
+    $lesson_id = (int) ($_POST['lesson_id'] ?? 0);
+    if ($matching_id > 0 && $lesson_id > 0) {
+        $done_stmt = mysqli_prepare($conn, "UPDATE matching_lesson_progress
+                                            SET is_completed = 1, completed_at = NOW()
+                                            WHERE matching_id = ? AND lesson_id = ?");
+        mysqli_stmt_bind_param($done_stmt, "ii", $matching_id, $lesson_id);
+        mysqli_stmt_execute($done_stmt);
+        mysqli_stmt_close($done_stmt);
+
+        $pending_stmt = mysqli_prepare($conn, "SELECT SUM(CASE WHEN is_completed = 0 THEN 1 ELSE 0 END) AS pending_count
+                                               FROM matching_lesson_progress WHERE matching_id = ?");
+        mysqli_stmt_bind_param($pending_stmt, "i", $matching_id);
+        mysqli_stmt_execute($pending_stmt);
+        $pending_res = mysqli_stmt_get_result($pending_stmt);
+        $pending_row = $pending_res ? mysqli_fetch_assoc($pending_res) : null;
+        mysqli_stmt_close($pending_stmt);
+
+        if ($pending_row && (int) ($pending_row['pending_count'] ?? 0) === 0) {
+            $complete_stmt = mysqli_prepare($conn, "UPDATE tutor_student_matching SET status = 'Completed' WHERE id = ? AND status = 'Active'");
+            mysqli_stmt_bind_param($complete_stmt, "i", $matching_id);
+            mysqli_stmt_execute($complete_stmt);
+            mysqli_stmt_close($complete_stmt);
+            $flash_ok = 'Lesson completed. All lessons finished, matching is now Completed.';
+        } else {
+            $flash_ok = 'Lesson progress updated.';
+        }
+    }
+}
 
 // Save tutor review for completed matching
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_review'])) {
@@ -55,13 +100,38 @@ $sql = "SELECT tsm.*,
         t.tutor_id, s.student_id,
         tr.id AS review_id,
         tr.rating AS review_rating,
-        tr.comment AS review_comment
+        tr.comment AS review_comment,
+        COALESCE(lp.total_lessons, 0) AS total_lessons,
+        COALESCE(lp.completed_lessons, 0) AS completed_lessons
         FROM tutor_student_matching tsm
         LEFT JOIN tutors t ON tsm.tutor_id = t.id
         LEFT JOIN students s ON tsm.student_id = s.id
         LEFT JOIN tutor_reviews tr ON tr.matching_id = tsm.id
+        LEFT JOIN (
+            SELECT matching_id,
+                   COUNT(*) AS total_lessons,
+                   SUM(CASE WHEN is_completed = 1 THEN 1 ELSE 0 END) AS completed_lessons
+            FROM matching_lesson_progress
+            GROUP BY matching_id
+        ) lp ON lp.matching_id = tsm.id
         ORDER BY tsm.created_at DESC";
 $result = mysqli_query($conn, $sql);
+
+$lesson_progress_map = [];
+$lp_sql = "SELECT mlp.matching_id, mlp.lesson_id, mlp.is_completed, l.lesson_name
+           FROM matching_lesson_progress mlp
+           INNER JOIN lessons l ON l.id = mlp.lesson_id
+           ORDER BY l.lesson_name ASC";
+$lp_res = mysqli_query($conn, $lp_sql);
+if ($lp_res) {
+    while ($lr = mysqli_fetch_assoc($lp_res)) {
+        $mid = (int) $lr['matching_id'];
+        if (!isset($lesson_progress_map[$mid])) {
+            $lesson_progress_map[$mid] = [];
+        }
+        $lesson_progress_map[$mid][] = $lr;
+    }
+}
 
 // Preload all tutor reviews (for carousel in "View Review" modal)
 $all_reviews_map = [];
@@ -165,6 +235,7 @@ if ($all_reviews_res) {
                     <th>Subject</th>
                     <th>Start Date</th>
                     <th>End Date</th>
+                    <th>Lesson Progress</th>
                     <th>Status</th>
                     <th>Actions</th>
                 </tr>
@@ -191,6 +262,34 @@ if ($all_reviews_res) {
                         echo '<td>' . htmlspecialchars($row['subject']) . '</td>';
                         echo '<td>' . htmlspecialchars($row['start_date']) . '</td>';
                         echo '<td>' . htmlspecialchars($row['end_date'] ?? 'Ongoing') . '</td>';
+                        $mid = (int) $row['id'];
+                        $total_lessons = (int) ($row['total_lessons'] ?? 0);
+                        $completed_lessons = (int) ($row['completed_lessons'] ?? 0);
+                        echo '<td>';
+                        if ($total_lessons > 0) {
+                            echo '<div style="font-weight:700;margin-bottom:6px;">' . $completed_lessons . '/' . $total_lessons . ' done</div>';
+                            if (!empty($lesson_progress_map[$mid])) {
+                                foreach ($lesson_progress_map[$mid] as $lesson_row) {
+                                    echo '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px;">';
+                                    echo '<span style="font-size:12px;">' . htmlspecialchars($lesson_row['lesson_name']) . '</span>';
+                                    if ((int) $lesson_row['is_completed'] === 1) {
+                                        echo '<span style="font-size:11px;color:#27ae60;font-weight:700;">Done</span>';
+                                    } elseif ($row['status'] === 'Active') {
+                                        echo '<form method="post" style="margin:0;">';
+                                        echo '<input type="hidden" name="matching_id" value="' . $mid . '">';
+                                        echo '<input type="hidden" name="lesson_id" value="' . (int) $lesson_row['lesson_id'] . '">';
+                                        echo '<button type="submit" name="mark_lesson_done" value="1" style="padding:4px 8px;border:none;border-radius:4px;background:#3498db;color:#fff;font-size:11px;cursor:pointer;">Mark done</button>';
+                                        echo '</form>';
+                                    } else {
+                                        echo '<span style="font-size:11px;color:#7f8c8d;">Pending</span>';
+                                    }
+                                    echo '</div>';
+                                }
+                            }
+                        } else {
+                            echo '<span style="font-size:12px;color:#7f8c8d;">No lessons yet</span>';
+                        }
+                        echo '</td>';
                         echo '<td><span class="badge ' . $status_class . '">' . htmlspecialchars($row['status']) . '</span></td>';
                         echo '<td>';
                         if ($row['status'] === 'Completed') {
@@ -209,7 +308,7 @@ if ($all_reviews_res) {
                         echo '</tr>';
                     }
                 } else {
-                    echo '<tr><td colspan="7" style="text-align:center;">No tutor-student matching records found.</td></tr>';
+                    echo '<tr><td colspan="8" style="text-align:center;">No tutor-student matching records found.</td></tr>';
                 }
                 ?>
             </tbody>
