@@ -311,6 +311,13 @@ $suggestions_sql = "SELECT tms.*,
                            t.tutor_id, t.specialization, t.experience_years, t.hourly_rate,
                            COALESCE(tr.avg_rating,   0) AS avg_rating,
                            COALESCE(tr.review_count, 0) AS review_count,
+                           (
+                               SELECT tr2.comment
+                               FROM tutor_reviews tr2
+                               WHERE tr2.tutor_id = t.id
+                               ORDER BY tr2.created_at DESC
+                               LIMIT 1
+                           ) AS latest_comment,
                            CASE WHEN COALESCE(tr.review_count, 0) > 0
                                  AND (COALESCE(tr.avg_rating, 0) * 10) > 80
                                 THEN 1 ELSE 0 END AS is_recommended
@@ -555,6 +562,13 @@ $students_result = mysqli_query($conn, $students_sql);
                             <?php endforeach; ?>
                         </div>
                         <small style="color:#7f8c8d;display:block;margin-top:6px;">Recent tutor feedback (auto-fade)</small>
+                    </div>
+                <?php endif; ?>
+
+                <?php if (!empty($suggestion['latest_comment'])): ?>
+                    <div style="margin-top:10px;padding:10px 12px;background:#f5fbff;border:1px solid #dbeaf7;border-radius:8px;color:#2c3e50;">
+                        <strong><i class="fas fa-comment-dots"></i> Latest reviewer comment:</strong>
+                        <div style="margin-top:4px;"><?php echo htmlspecialchars($suggestion['latest_comment']); ?></div>
                     </div>
                 <?php endif; ?>
 
