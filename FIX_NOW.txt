@@ -1,0 +1,72 @@
+================================================================================
+                    QUICK FIX - Run This Now!
+================================================================================
+
+STEP 1: Open phpMyAdmin
+   URL: http://localhost/phpmyadmin
+
+STEP 2: Select Database
+   Click on "cuteko" in the left sidebar
+
+STEP 3: Go to SQL Tab
+   Click the "SQL" tab at the top
+
+STEP 4: Copy and Paste
+   Open file: db/quick_fix.sql
+   Copy ALL the content
+   Paste into the SQL box
+
+STEP 5: Execute
+   Click the "Go" button (bottom right)
+   Wait for "Database updated successfully!" message
+
+STEP 6: Refresh Browser
+   Go back to your system
+   Refresh the page (F5 or Ctrl+R)
+
+STEP 7: Test
+   Go to: Admin Dashboard → Manage Year Levels
+   Should work now! ✅
+
+================================================================================
+
+OR USE COMMAND LINE (Faster):
+
+1. Open Command Prompt (cmd)
+2. Run this command:
+
+   mysql -u root -p cuteko < c:\wamp64\www\FINAL.com\FINAL.com\db\quick_fix.sql
+
+3. Enter your MySQL password (usually empty, just press Enter)
+4. Done! Refresh browser.
+
+================================================================================
+
+WHAT THIS DOES:
+- Creates year_levels table
+- Adds 5 default year levels (YR1-YR5)
+- Adds year_level_id column to students table
+- Adds section column to students table
+- Adds student_id_image column to students table
+- Adds profile_picture column to students table
+- Creates foreign key relationship
+- Adds performance indexes
+
+TIME REQUIRED: 30 seconds
+
+================================================================================
+
+VERIFICATION:
+After running, check if it worked:
+
+1. In phpMyAdmin, click on "students" table
+2. Click "Structure" tab
+3. You should see these NEW columns:
+   - year_level_id
+   - section
+   - student_id_image
+   - profile_picture
+
+If you see them, you're done! ✅
+
+================================================================================

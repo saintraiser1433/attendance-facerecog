@@ -1,0 +1,167 @@
+================================================================================
+                HOW TO IMPORT setup_database.sql
+================================================================================
+
+The setup_database.sql file now contains EVERYTHING you need in ONE file!
+
+It includes:
+✅ year_levels table with 5 default year levels
+✅ students table with year_level_id, section, student_id_image columns
+✅ tutor_attendance table for tutor attendance tracking
+✅ All other necessary tables
+✅ Sample data
+✅ Triggers for auto-generating IDs
+
+================================================================================
+
+METHOD 1: Using phpMyAdmin (Recommended)
+================================================================================
+
+1. Open phpMyAdmin
+   URL: http://localhost/phpmyadmin
+
+2. Select Database
+   - Click "cuteko" in left sidebar
+   - If "cuteko" doesn't exist, create it first:
+     * Click "New" in left sidebar
+     * Database name: cuteko
+     * Collation: utf8mb4_general_ci
+     * Click "Create"
+
+3. Import the File
+   - Click "Import" tab at the top
+   - Click "Choose File" button
+   - Navigate to: c:\wamp64\www\FINAL.com\FINAL.com\db\setup_database.sql
+   - Click "Open"
+   - Scroll down and click "Go" button
+
+4. Wait for Success
+   - You should see: "Import has been successfully finished"
+   - Green checkmarks for each table created
+
+5. Verify
+   - Click "cuteko" database in left sidebar
+   - You should see all tables including:
+     * year_levels ← NEW
+     * students (with new columns)
+     * tutor_attendance ← NEW
+     * And many more...
+
+6. Done!
+   - Refresh your browser
+   - Go to: http://localhost/FINAL.com/FINAL.com/admin/dashboard.php?page=manage_year_levels
+   - Should work perfectly! ✅
+
+================================================================================
+
+METHOD 2: Using Command Line (Faster)
+================================================================================
+
+1. Open Command Prompt (cmd)
+
+2. Navigate to MySQL bin folder (if not in PATH):
+   cd C:\wamp64\bin\mysql\mysql8.x.x\bin
+
+3. Run this command:
+   mysql -u root -p cuteko < c:\wamp64\www\FINAL.com\FINAL.com\db\setup_database.sql
+
+4. Enter password when prompted (usually empty, just press Enter)
+
+5. Done! Refresh browser.
+
+================================================================================
+
+WHAT IF DATABASE ALREADY EXISTS?
+================================================================================
+
+Don't worry! The file is safe to run multiple times because:
+
+✅ Uses "CREATE TABLE IF NOT EXISTS" - won't recreate existing tables
+✅ Uses "INSERT IGNORE" - won't duplicate data
+✅ Preserves your existing admin user (elias)
+✅ Won't delete any existing data
+
+So you can safely import it even if you already have data!
+
+================================================================================
+
+VERIFICATION STEPS
+================================================================================
+
+After importing, verify everything is correct:
+
+1. Check year_levels table:
+   SELECT * FROM year_levels;
+   
+   Should show 5 rows:
+   - YR1: Year 1
+   - YR2: Year 2
+   - YR3: Year 3
+   - YR4: Year 4
+   - YR5: Year 5
+
+2. Check students table structure:
+   DESCRIBE students;
+   
+   Should include these columns:
+   - year_level_id
+   - section
+   - student_id_image
+   - profile_picture
+
+3. Check tutor_attendance table:
+   DESCRIBE tutor_attendance;
+   
+   Should exist with columns for attendance tracking
+
+4. Test the system:
+   - Login as admin (username: elias, password: 1234)
+   - Go to Manage Year Levels
+   - Should load without errors ✅
+
+================================================================================
+
+TROUBLESHOOTING
+================================================================================
+
+Error: "Access denied"
+Solution: Make sure MySQL is running and credentials are correct
+
+Error: "Database doesn't exist"
+Solution: Create database first:
+  CREATE DATABASE cuteko;
+  USE cuteko;
+  Then import again
+
+Error: "Table already exists"
+Solution: This is fine! The file uses IF NOT EXISTS, so it's safe
+
+Error: "Cannot add foreign key constraint"
+Solution: Make sure you're importing to a fresh database or all parent tables exist
+
+================================================================================
+
+TIME REQUIRED
+================================================================================
+
+- Method 1 (phpMyAdmin): 2 minutes
+- Method 2 (Command Line): 30 seconds
+
+================================================================================
+
+NEED HELP?
+================================================================================
+
+If you encounter any issues:
+
+1. Check MySQL is running (WAMP icon should be green)
+2. Verify database name is "cuteko"
+3. Make sure you have admin privileges
+4. Try restarting MySQL service
+5. Check for error messages in phpMyAdmin
+
+================================================================================
+
+That's it! Your database will be fully set up and ready to use! 🎉
+
+================================================================================

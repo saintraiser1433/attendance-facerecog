@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fingerprint SDK Test</title>
+    <script src="Fingerprint/StudentFingerPrint/StudentFingerPrint/lib/js/websdk.client.bundle.min.js"></script>
+</head>
+<body>
+    <h1>Fingerprint SDK Test</h1>
+    <p>This page tests if the DigitalPersona WebSDK is properly loaded.</p>
+    
+    <div id="status">Checking DigitalPersona WebSDK status...</div>
+    
+    <script>
+        // Check if DigitalPersona SDK is loaded
+        if (typeof Fingerprint !== 'undefined') {
+            document.getElementById('status').innerHTML = '<p style="color: green;">DigitalPersona WebSDK is loaded successfully!</p>';
+            console.log('DigitalPersona WebSDK loaded:', Fingerprint);
+        } else {
+            document.getElementById('status').innerHTML = '<p style="color: red;">DigitalPersona WebSDK is NOT loaded. Please check the file path.</p>';
+        }
+    </script>
+</body>
+</html>
