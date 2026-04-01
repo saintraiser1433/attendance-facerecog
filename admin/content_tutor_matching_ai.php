@@ -70,13 +70,16 @@ if (isset($_POST['accept_match'])) {
         $result = mysqli_stmt_get_result($get_stmt);
         $suggestion = mysqli_fetch_assoc($result);
 
-        // Upsert to avoid duplicate-key crash on unique_tutor_student
+        // Treat each accepted match as a new historical row (no upsert/grouping behavior).
+        // If unique index still exists in DB, drop it so repeated tutor-student-subject entries are allowed.
+        try {
+            mysqli_query($conn, "ALTER TABLE tutor_student_matching DROP INDEX unique_tutor_student");
+        } catch (Throwable $e) {
+            // Already removed or restricted in this environment; continue.
+        }
+
         $match_sql = "INSERT INTO tutor_student_matching (tutor_id, student_id, subject, status, start_date, end_date)
-                      VALUES (?, ?, ?, 'Active', CURDATE(), ?)
-                      ON DUPLICATE KEY UPDATE
-                        status = 'Active',
-                        end_date = VALUES(end_date),
-                        updated_at = CURRENT_TIMESTAMP";
+                      VALUES (?, ?, ?, 'Active', CURDATE(), ?)";
         $match_stmt = mysqli_prepare($conn, $match_sql);
         mysqli_stmt_bind_param($match_stmt, "iiss",
             $suggestion['tutor_id'], $suggestion['student_id'], $suggestion['subject'], $end_date);
