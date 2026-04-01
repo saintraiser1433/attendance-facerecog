@@ -73,11 +73,26 @@ if (isset($_POST['accept_match'])) {
         $suggestion = mysqli_fetch_assoc($result);
 
         // Treat each accepted match as a new historical row (no upsert/grouping behavior).
-        // If unique index still exists in DB, drop it so repeated tutor-student-subject entries are allowed.
+        // If the legacy unique index still exists, drop it so repeated tutor-student-subject entries are allowed.
+        // Some environments keep this index from older schema dumps.
+        $has_unique_index = false;
         try {
-            mysqli_query($conn, "ALTER TABLE tutor_student_matching DROP INDEX unique_tutor_student");
+            $idxRes = mysqli_query($conn, "SELECT 1
+                                           FROM information_schema.statistics
+                                           WHERE table_schema = DATABASE()
+                                             AND table_name = 'tutor_student_matching'
+                                             AND index_name = 'unique_tutor_student'
+                                           LIMIT 1");
+            $has_unique_index = ($idxRes && mysqli_num_rows($idxRes) > 0);
         } catch (Throwable $e) {
-            // Already removed or restricted in this environment; continue.
+            $has_unique_index = false;
+        }
+        if ($has_unique_index) {
+            try {
+                mysqli_query($conn, "ALTER TABLE tutor_student_matching DROP INDEX unique_tutor_student");
+            } catch (Throwable $e) {
+                // We'll retry insert and if it still fails with duplicate key, we'll show a friendly error.
+            }
         }
 
         $match_sql = "INSERT INTO tutor_student_matching (tutor_id, student_id, subject, status, start_date, end_date)
@@ -85,11 +100,29 @@ if (isset($_POST['accept_match'])) {
         $match_stmt = mysqli_prepare($conn, $match_sql);
         mysqli_stmt_bind_param($match_stmt, "iiss",
             $suggestion['tutor_id'], $suggestion['student_id'], $suggestion['subject'], $end_date);
-        mysqli_stmt_execute($match_stmt);
-        $new_matching_id = (int) mysqli_insert_id($conn);
+        $new_matching_id = 0;
+        try {
+            mysqli_stmt_execute($match_stmt);
+            $new_matching_id = (int) mysqli_insert_id($conn);
+        } catch (Throwable $e) {
+            // If the unique index still exists, drop it and retry once.
+            $msg = $e->getMessage();
+            $is_dup = (stripos($msg, 'Duplicate entry') !== false) && (stripos($msg, 'unique_tutor_student') !== false);
+            if ($is_dup) {
+                try {
+                    mysqli_query($conn, "ALTER TABLE tutor_student_matching DROP INDEX unique_tutor_student");
+                    mysqli_stmt_execute($match_stmt);
+                    $new_matching_id = (int) mysqli_insert_id($conn);
+                } catch (Throwable $e2) {
+                    $error_message = "Could not accept match because the database still enforces a unique tutor-student-subject rule. Please remove the index `unique_tutor_student` from `tutor_student_matching`.";
+                }
+            } else {
+                $error_message = "Could not accept match: " . $msg;
+            }
+        }
         mysqli_stmt_close($match_stmt);
 
-        if ($new_matching_id > 0) {
+        if (empty($error_message) && $new_matching_id > 0) {
             $lesson_q = mysqli_prepare($conn, "SELECT lesson_id FROM tutor_lessons WHERE tutor_id = ?");
             mysqli_stmt_bind_param($lesson_q, "i", $suggestion['tutor_id']);
             mysqli_stmt_execute($lesson_q);
@@ -113,7 +146,9 @@ if (isset($_POST['accept_match'])) {
         }
         mysqli_stmt_close($get_stmt);
 
-        $success_message = "Match accepted and activated successfully!";
+        if (empty($error_message)) {
+            $success_message = "Match accepted and activated successfully!";
+        }
     }
     mysqli_stmt_close($stmt);
 }
