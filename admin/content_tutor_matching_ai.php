@@ -101,41 +101,27 @@ if ($is_generate_request) {
     $subject    = $effective_filter_subject;
     $generated_count = 0;
 
-    // Clear ALL existing matches/suggestions, then build a fresh new set.
-    // This removes old suggested matches and accepted/actual match rows.
+    // Clear old suggestions only, then build a fresh new set.
+    // Do NOT delete tutor_student_matching actual accepted matches.
     $before_clear_count = 0;
     $after_clear_count = 0;
-    $before_actual_matches = 0;
-    $after_actual_matches = 0;
     $count_before_res = mysqli_query($conn, "SELECT COUNT(*) AS c FROM tutor_matching_suggestions");
     if ($count_before_res && ($row_before = mysqli_fetch_assoc($count_before_res))) {
         $before_clear_count = (int) ($row_before['c'] ?? 0);
     }
-    $count_before_match_res = mysqli_query($conn, "SELECT COUNT(*) AS c FROM tutor_student_matching");
-    if ($count_before_match_res && ($row_match_before = mysqli_fetch_assoc($count_before_match_res))) {
-        $before_actual_matches = (int) ($row_match_before['c'] ?? 0);
-    }
 
     try {
         mysqli_query($conn, "DELETE FROM tutor_matching_suggestions");
-        mysqli_query($conn, "DELETE FROM tutor_student_matching");
     } catch (Throwable $e2) {
-        $error_message = "Could not clear old matches/suggestions: " . $e2->getMessage();
+        $error_message = "Could not clear old suggestions: " . $e2->getMessage();
     }
 
     $count_after_res = mysqli_query($conn, "SELECT COUNT(*) AS c FROM tutor_matching_suggestions");
     if ($count_after_res && ($row_after = mysqli_fetch_assoc($count_after_res))) {
         $after_clear_count = (int) ($row_after['c'] ?? 0);
     }
-    $count_after_match_res = mysqli_query($conn, "SELECT COUNT(*) AS c FROM tutor_student_matching");
-    if ($count_after_match_res && ($row_match_after = mysqli_fetch_assoc($count_after_match_res))) {
-        $after_actual_matches = (int) ($row_match_after['c'] ?? 0);
-    }
     if ($after_clear_count > 0 && empty($error_message)) {
         $error_message = "Could not clear all suggestions (remaining: {$after_clear_count}).";
-    }
-    if ($after_actual_matches > 0 && empty($error_message)) {
-        $error_message = "Could not clear all existing matches (remaining: {$after_actual_matches}).";
     }
     if (!empty($error_message)) {
         // Stop generation if cleanup failed so user sees the exact issue.
@@ -289,8 +275,7 @@ if ($is_generate_request) {
     }
 
     $cleared_count = max(0, $before_clear_count - $after_clear_count);
-    $cleared_actual = max(0, $before_actual_matches - $after_actual_matches);
-    $success_message = "AI matching suggestions generated successfully! Cleared {$cleared_count} suggestion row(s), cleared {$cleared_actual} actual match row(s), inserted {$generated_count} new result(s).";
+    $success_message = "AI matching suggestions generated successfully! Cleared {$cleared_count} suggestion row(s), inserted {$generated_count} new result(s).";
     }
 }
 
