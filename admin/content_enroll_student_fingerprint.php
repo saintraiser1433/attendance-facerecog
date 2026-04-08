@@ -166,6 +166,15 @@ if (isset($_POST['ajax_enroll'])) {
             $debug_info .= ", Index length: " . $index_len . ", Middle length: " . $middle_len;
             $debug_info .= ", Index is null: " . ($enrolled_index_finger === null ? 'yes' : 'no');
             $debug_info .= ", Middle is null: " . ($enrolled_middle_finger === null ? 'yes' : 'no');
+            $debug_info .= ", Raw response (first 200): " . substr((string)$json_response, 0, 200);
+            $debug_info .= ", First index sample type: " . (isset($index_finger_samples[0]) ? gettype($index_finger_samples[0]) : 'missing');
+            $debug_info .= ", First middle sample type: " . (isset($middle_finger_samples[0]) ? gettype($middle_finger_samples[0]) : 'missing');
+            if (isset($index_finger_samples[0]) && is_string($index_finger_samples[0])) {
+                $debug_info .= ", First index sample length: " . strlen($index_finger_samples[0]);
+            }
+            if (isset($middle_finger_samples[0]) && is_string($middle_finger_samples[0])) {
+                $debug_info .= ", First middle sample length: " . strlen($middle_finger_samples[0]);
+            }
             $response = ['success' => false, 'error' => 'Failed to process fingerprint templates. The enrollment service returned empty values. ' . $debug_info];
             echo json_encode($response);
             exit();
