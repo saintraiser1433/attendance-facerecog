@@ -134,6 +134,26 @@ if (isset($_POST['ajax_enroll'])) {
             echo json_encode($response);
             exit();
         }
+
+        // Handle structured error responses from the enrollment service
+        $service_error = null;
+        $service_details = null;
+        if (is_array($response)) {
+            $service_error = $response['error'] ?? null;
+            $service_details = $response['details'] ?? null;
+        } else {
+            $service_error = $response->error ?? null;
+            $service_details = $response->details ?? null;
+        }
+        if (is_string($service_error) && trim($service_error) !== '') {
+            ob_clean();
+            $msg = 'Fingerprint enrollment processing failed. Service error: ' . $service_error;
+            if (!empty($service_details)) {
+                $msg .= '. Details: ' . json_encode($service_details);
+            }
+            echo json_encode(['success' => false, 'error' => $msg]);
+            exit();
+        }
         
         // Extract the processed template strings (handle both array and object formats)
         if (is_array($response)) {

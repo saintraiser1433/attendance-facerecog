@@ -17,6 +17,16 @@ function enroll_fingerprint($pre_fmd_string_array){
     global $client;
     
     foreach($pre_fmd_string_array as $pre_reg_fmd) {
+        // Validate inputs early. If we pass non-strings / empty values into protobuf,
+        // they can become empty strings and gRPC may still return STATUS_OK with an empty enrolled FMD.
+        if (!is_string($pre_reg_fmd)) {
+            return "enrollment failed";
+        }
+        $pre_reg_fmd = trim($pre_reg_fmd);
+        if ($pre_reg_fmd === '') {
+            return "enrollment failed";
+        }
+
         $pre_enrollment_fmd = new Fingerprint\PreEnrolledFMD();
         $pre_enrollment_fmd->setBase64PreEnrolledFMD($pre_reg_fmd);
         array_push($pre_enrolled_fmds, $pre_enrollment_fmd);
@@ -27,7 +37,11 @@ function enroll_fingerprint($pre_fmd_string_array){
     list($enrolled_fmd, $status) = $client->EnrollFingerprint($enrollment_request)->wait();
     
     if ($status->code === Grpc\STATUS_OK) {
-        return $enrolled_fmd->getBase64EnrolledFMD();
+        $out = $enrolled_fmd->getBase64EnrolledFMD();
+        if (!is_string($out) || trim($out) === '') {
+            return "enrollment failed";
+        }
+        return $out;
     }
     else {
         return "enrollment failed" ;
