@@ -178,8 +178,8 @@ if (isset($_POST['ajax_enroll'])) {
         }
         
         // Log extracted values for debugging
-        $index_len = $enrolled_index_finger ? strlen($enrolled_index_finger) : 0;
-        $middle_len = $enrolled_middle_finger ? strlen($enrolled_middle_finger) : 0;
+        $index_len = is_string($enrolled_index_finger) ? strlen($enrolled_index_finger) : (is_array($enrolled_index_finger) ? count($enrolled_index_finger) : 0);
+        $middle_len = is_string($enrolled_middle_finger) ? strlen($enrolled_middle_finger) : (is_array($enrolled_middle_finger) ? count($enrolled_middle_finger) : 0);
         error_log("Extracted index_finger length: " . $index_len);
         error_log("Extracted middle_finger length: " . $middle_len);
         
