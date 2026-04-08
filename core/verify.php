@@ -14,14 +14,20 @@ if (!empty($_POST["data"])) {
     $user_data = json_decode($_POST["data"]);
     
     // Handle both object and array formats
+    $captured_index_samples = [];
+    $captured_middle_samples = [];
     if (is_array($user_data)) {
         $sched = $user_data['sched'] ?? null;
         $user_type = $user_data['user_type'] ?? null;
-        $pre_reg_fmd_string = $user_data['index_finger'][0] ?? null;
+        $captured_index_samples = (isset($user_data['index_finger']) && is_array($user_data['index_finger'])) ? $user_data['index_finger'] : [];
+        $captured_middle_samples = (isset($user_data['middle_finger']) && is_array($user_data['middle_finger'])) ? $user_data['middle_finger'] : [];
+        $pre_reg_fmd_string = $captured_index_samples[0] ?? ($captured_middle_samples[0] ?? null);
     } else {
         $sched = $user_data->sched ?? null;
         $user_type = $user_data->user_type ?? null;
-        $pre_reg_fmd_string = $user_data->index_finger[0] ?? null;
+        $captured_index_samples = (isset($user_data->index_finger) && is_array($user_data->index_finger)) ? $user_data->index_finger : [];
+        $captured_middle_samples = (isset($user_data->middle_finger) && is_array($user_data->middle_finger)) ? $user_data->middle_finger : [];
+        $pre_reg_fmd_string = $captured_index_samples[0] ?? ($captured_middle_samples[0] ?? null);
     }
     
     if (!$pre_reg_fmd_string) {
@@ -30,6 +36,14 @@ if (!empty($_POST["data"])) {
             'error' => 'No fingerprint data provided'
         ]);
         exit();
+    }
+
+    // Flatten captured samples for fallback array-format matching
+    $captured_samples = [];
+    foreach (array_merge($captured_index_samples, $captured_middle_samples) as $s) {
+        if (is_string($s) && trim($s) !== '') {
+            $captured_samples[] = $s;
+        }
     }
     
     // Get fingerprint data based on context
@@ -98,7 +112,13 @@ if (!empty($_POST["data"])) {
             if (is_array($index_finger) || is_array($middle_finger)) {
                 $idx_arr = is_array($index_finger) ? $index_finger : [];
                 $mid_arr = is_array($middle_finger) ? $middle_finger : [];
-                $exact_match = in_array($pre_reg_fmd_string, $idx_arr, true) || in_array($pre_reg_fmd_string, $mid_arr, true);
+                $exact_match = false;
+                foreach ($captured_samples as $cap) {
+                    if (in_array($cap, $idx_arr, true) || in_array($cap, $mid_arr, true)) {
+                        $exact_match = true;
+                        break;
+                    }
+                }
                 if ($exact_match) {
                     $match_found = true;
                     $matched_user = $value;
