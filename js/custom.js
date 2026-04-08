@@ -572,8 +572,28 @@ function storeUserID() {
 }
 
 function storeSample(sample) {
+  // Convert acquired sample into FMD if SDK supports it.
+  // The gRPC engine expects DigitalPersona FMD (pre-enrollment features), not raw/intermediate sample blobs.
+  storeSampleAsync(sample);
+}
+
+async function storeSampleAsync(sample) {
   let samples = JSON.parse(sample.samples);
   let sampleData = samples[0].Data;
+  let fmdData = sampleData;
+
+  try {
+    if (typeof Fingerprint !== "undefined" && typeof Fingerprint.createFmd === "function") {
+      // WebSDK returns a promise that resolves to an object with Data (base64-encoded FMD)
+      let fmd = await Fingerprint.createFmd(sampleData, currentFormat);
+      if (fmd && fmd.Data) {
+        fmdData = fmd.Data;
+      }
+    }
+  } catch (e) {
+    // If conversion fails, fall back to the raw sampleData
+    console.warn("createFmd failed; using raw sample data", e);
+  }
 
   let nextElementID = getNextNotEnrolledID();
   let isVerification = document.getElementById("verifyReaderSelect") !== null;
@@ -584,7 +604,7 @@ function storeSample(sample) {
     nextElementID.startsWith("index") ||
     nextElementID.startsWith("verification")
   ) {
-    myReader.currentHand.addIndexFingerSample(sampleData);
+    myReader.currentHand.addIndexFingerSample(fmdData);
     showSampleCaptured();
     
     // For verification: after 2 samples, verify immediately
@@ -602,7 +622,7 @@ function storeSample(sample) {
   }
 
   if (nextElementID.startsWith("middle")) {
-    myReader.currentHand.addMiddleFingerSample(sampleData);
+    myReader.currentHand.addMiddleFingerSample(fmdData);
     showSampleCaptured();
     showNextNotEnrolledItem();
   }
