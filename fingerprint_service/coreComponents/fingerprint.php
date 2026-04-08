@@ -15,6 +15,7 @@ function enroll_fingerprint($pre_fmd_string_array){
     $pre_enrolled_fmds = array();
 
     global $client;
+    $encoder = class_exists('UrlEncode') ? new UrlEncode() : null;
     
     foreach($pre_fmd_string_array as $pre_reg_fmd) {
         // Validate inputs early. If we pass non-strings / empty values into protobuf,
@@ -25,6 +26,11 @@ function enroll_fingerprint($pre_fmd_string_array){
         $pre_reg_fmd = trim($pre_reg_fmd);
         if ($pre_reg_fmd === '') {
             return "enrollment failed";
+        }
+        // DigitalPersona WebSDK typically returns URL-safe base64 without padding.
+        // Normalize to standard base64 (+,/ and padding) for the gRPC engine.
+        if ($encoder) {
+            $pre_reg_fmd = $encoder->createValidBase64FMD($pre_reg_fmd);
         }
 
         $pre_enrollment_fmd = new Fingerprint\PreEnrolledFMD();
@@ -70,6 +76,20 @@ function check_duplicate($pre_fmd_string, $enrolled_fmd_string_list){
 
 function verify_fingerprint($pre_enrolled_fmd_string, $enrolled_fmd_string){
     global $client;
+    $encoder = class_exists('UrlEncode') ? new UrlEncode() : null;
+
+    if (!is_string($pre_enrolled_fmd_string) || trim($pre_enrolled_fmd_string) === '') {
+        return "verification failed";
+    }
+    if (!is_string($enrolled_fmd_string) || trim($enrolled_fmd_string) === '') {
+        return "verification failed";
+    }
+    $pre_enrolled_fmd_string = trim($pre_enrolled_fmd_string);
+    $enrolled_fmd_string = trim($enrolled_fmd_string);
+    if ($encoder) {
+        $pre_enrolled_fmd_string = $encoder->createValidBase64FMD($pre_enrolled_fmd_string);
+        $enrolled_fmd_string = $encoder->createValidBase64FMD($enrolled_fmd_string);
+    }
 
     $pre_enrolled_fmd = new Fingerprint\PreEnrolledFMD();
     $pre_enrolled_fmd->setBase64PreEnrolledFMD($pre_enrolled_fmd_string);
