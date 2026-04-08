@@ -165,7 +165,7 @@ if (isset($_POST['ajax_enroll'])) {
         }
 
         // Fallback: if the enrollment service returns empty templates but we have valid samples,
-        // store the first sample per finger so enrollment can proceed.
+        // store the captured samples array so verification can still work without the engine.
         if (
             (empty($enrolled_index_finger) || empty($enrolled_middle_finger)) &&
             isset($index_finger_samples[0], $middle_finger_samples[0]) &&
@@ -173,8 +173,8 @@ if (isset($_POST['ajax_enroll'])) {
             is_string($middle_finger_samples[0]) && trim($middle_finger_samples[0]) !== ''
         ) {
             error_log("WARNING: Enrollment service returned empty templates; falling back to first captured samples.");
-            $enrolled_index_finger = $index_finger_samples[0];
-            $enrolled_middle_finger = $middle_finger_samples[0];
+            $enrolled_index_finger = $index_finger_samples;
+            $enrolled_middle_finger = $middle_finger_samples;
         }
         
         // Log extracted values for debugging

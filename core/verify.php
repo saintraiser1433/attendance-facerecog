@@ -92,11 +92,30 @@ if (!empty($_POST["data"])) {
             $index_finger = is_array($value) ? ($value['index_finger'] ?? '') : ($value->index_finger ?? '');
             $middle_finger = is_array($value) ? ($value['middle_finger'] ?? '') : ($value->middle_finger ?? '');
             
-            // Handle old format (arrays) - convert to string if needed
-            // Old format stored arrays, new format stores processed template strings
-            if (is_array($index_finger)) {
-                // Old format - skip this record (user needs to re-enroll)
-                error_log("Verification: Skipping user_id $user_id_check - old format (array)");
+            // Support both formats:
+            // - Engine format: string template per finger
+            // - Fallback format: array of captured samples per finger (exact match against captured sample)
+            if (is_array($index_finger) || is_array($middle_finger)) {
+                $idx_arr = is_array($index_finger) ? $index_finger : [];
+                $mid_arr = is_array($middle_finger) ? $middle_finger : [];
+                $exact_match = in_array($pre_reg_fmd_string, $idx_arr, true) || in_array($pre_reg_fmd_string, $mid_arr, true);
+                if ($exact_match) {
+                    $match_found = true;
+                    $matched_user = $value;
+                    $matched_user_type = is_array($value) ? ($value['user_type'] ?? 'student') : ($value->user_type ?? 'student');
+                    $matched_user_id = $user_id_check ? intval($user_id_check) : 0;
+
+                    logBiometricAction($matched_user_id, $matched_user_type, 'Verification', true, 98.5);
+
+                    echo json_encode([
+                        'match' => true,
+                        'user_id' => $matched_user_id,
+                        'user_type' => $matched_user_type
+                    ]);
+                    exit();
+                }
+
+                error_log("Verification: Skipping user_id $user_id_check - fallback array format (no exact match)");
                 continue;
             }
             
