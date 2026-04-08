@@ -45,11 +45,13 @@ function enroll_fingerprint($pre_fmd_string_array){
     if ($status->code === Grpc\STATUS_OK) {
         $out = $enrolled_fmd->getBase64EnrolledFMD();
         if (!is_string($out) || trim($out) === '') {
+            error_log("EnrollFingerprint returned OK but empty enrolled FMD");
             return "enrollment failed";
         }
         return $out;
     }
     else {
+        error_log("EnrollFingerprint gRPC failed: code=" . ($status->code ?? 'unknown') . " details=" . ($status->details ?? ''));
         return "enrollment failed" ;
     }
 }
@@ -106,6 +108,7 @@ function verify_fingerprint($pre_enrolled_fmd_string, $enrolled_fmd_string){
         return $verification_response->getMatch();
     }
     else {
+        error_log("VerifyFingerprint gRPC failed: code=" . ($status->code ?? 'unknown') . " details=" . ($status->details ?? ''));
         return "verification failed";
     }
 }
