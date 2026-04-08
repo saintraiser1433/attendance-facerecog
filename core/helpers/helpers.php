@@ -112,6 +112,18 @@ function make_request($url, $data){
     $headers = array('Content-Type' => 'application/x-www-form-urlencoded');
     
     $response = WpOrg\Requests\Requests::post($url, $headers, $data);
+
+    // Log basic transport info to help debug "empty enrollment templates" scenarios.
+    $status_code = isset($response->status_code) ? $response->status_code : null;
+    error_log("Fingerprint service request URL: " . $url);
+    error_log("Fingerprint service HTTP status: " . ($status_code === null ? 'unknown' : $status_code));
+    error_log("Fingerprint service response (first 200): " . substr((string)($response->body ?? ''), 0, 200));
+
+    // Treat non-2xx as failure so callers can surface a helpful error.
+    if (!is_int($status_code) || $status_code < 200 || $status_code >= 300) {
+        throw new \Exception("Fingerprint service HTTP error: " . ($status_code === null ? 'unknown' : $status_code));
+    }
+
     return $response->body;
 }
 

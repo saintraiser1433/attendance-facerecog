@@ -163,6 +163,19 @@ if (isset($_POST['ajax_enroll'])) {
             $enrolled_index_finger = $response->enrolled_index_finger ?? $response->index_finger ?? null;
             $enrolled_middle_finger = $response->enrolled_middle_finger ?? $response->middle_finger ?? null;
         }
+
+        // Fallback: if the enrollment service returns empty templates but we have valid samples,
+        // store the first sample per finger so enrollment can proceed.
+        if (
+            (empty($enrolled_index_finger) || empty($enrolled_middle_finger)) &&
+            isset($index_finger_samples[0], $middle_finger_samples[0]) &&
+            is_string($index_finger_samples[0]) && trim($index_finger_samples[0]) !== '' &&
+            is_string($middle_finger_samples[0]) && trim($middle_finger_samples[0]) !== ''
+        ) {
+            error_log("WARNING: Enrollment service returned empty templates; falling back to first captured samples.");
+            $enrolled_index_finger = $index_finger_samples[0];
+            $enrolled_middle_finger = $middle_finger_samples[0];
+        }
         
         // Log extracted values for debugging
         $index_len = $enrolled_index_finger ? strlen($enrolled_index_finger) : 0;
