@@ -13,19 +13,10 @@
 <script src="../js/websdk.client.bundle.min.js"></script>
 <script src="../js/fingerprint_handler.js"></script>
 <script>
-// Fallback to CDN if local file is not available
-if (typeof Fingerprint === 'undefined') {
-    var script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/digitalpersona/1.0.0/websdk.client.bundle.min.js';
-    script.onload = function() {
-        console.log('Loaded WebSDK from CDN');
-    };
-    script.onerror = function() {
-        console.error('Failed to load WebSDK from CDN');
-        document.getElementById('fp-status').innerHTML = 'Error: Unable to load DigitalPersona WebSDK. Please contact administrator.';
-        document.getElementById('btn-scan-staff').disabled = true;
-    };
-    document.head.appendChild(script);
+// If local SDK files failed to load, show a clear message
+if (typeof window.Fingerprint === 'undefined' || typeof window.Fingerprint.verify !== 'function') {
+    document.getElementById('fp-status').innerHTML = 'Error: Fingerprint SDK not loaded. Please contact administrator.';
+    document.getElementById('btn-scan-staff').disabled = true;
 }
 
 (function(){
