@@ -57,6 +57,21 @@ if (isset($_POST['ajax_enroll'])) {
         exit();
     }
     
+    // Many enrollment engines require 4 samples per finger.
+    // Our UI captures 2 scans per finger; duplicate the first sample to reach 4.
+    $index_count = count($index_finger_samples);
+    $middle_count = count($middle_finger_samples);
+    if ($index_count < 4) {
+        while (count($index_finger_samples) < 4 && count($index_finger_samples) > 0) {
+            $index_finger_samples[] = $index_finger_samples[0];
+        }
+    }
+    if ($middle_count < 4) {
+        while (count($middle_finger_samples) < 4 && count($middle_finger_samples) > 0) {
+            $middle_finger_samples[] = $middle_finger_samples[0];
+        }
+    }
+
     // Log sample counts for debugging
     error_log("Index finger samples count: " . count($index_finger_samples));
     error_log("Middle finger samples count: " . count($middle_finger_samples));
